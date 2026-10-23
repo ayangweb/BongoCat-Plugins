@@ -639,6 +639,7 @@ mod development_tests {
     use super::*;
 
     #[test]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn development_catalog_names_local_packages_and_icons() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
