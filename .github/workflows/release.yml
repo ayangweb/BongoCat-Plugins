@@ -54,7 +54,7 @@ jobs:
           cargo test --locked -p bongocat-plugin-sdk -p bongocat-plugin-packaging
           cargo deny --locked check licenses sources bans
           python3 -m unittest discover -s tools/tests -p 'test_*.py'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-metadata
           path: release-notes.md
@@ -74,7 +74,7 @@ jobs:
       - run: >-
           cargo run --locked -p bongocat-plugin-packaging -- build
           --root . --target x86_64-pc-windows-msvc --output target/plugins/windows-x86_64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plugins-windows-x86_64
           path: target/plugins/windows-x86_64/*.zip
@@ -106,7 +106,7 @@ jobs:
       - run: >-
           cargo run --locked -p bongocat-plugin-packaging -- build
           --root . --target ${{ matrix.triple }} --output target/plugins/${{ matrix.platform }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plugins-${{ matrix.platform }}
           path: target/plugins/${{ matrix.platform }}/*.zip
