@@ -29,11 +29,11 @@ def host_triple():
     machine = (machine or "").lower()
     if machine == "amd64":
         machine = "x86_64"
-    return HOST_TRIPLES[(sys.platform, machine)]
+    return HOST_TRIPLES.get((sys.platform, machine))
 
 
 HOST_TRIPLE = host_triple()
-HOST_PLATFORM = PLATFORM_KEYS[HOST_TRIPLE]
+HOST_PLATFORM = PLATFORM_KEYS[HOST_TRIPLE] if HOST_TRIPLE else None
 
 
 def stage_packages(root: Path, platform: str) -> Path:
@@ -63,6 +63,7 @@ def stage_packages(root: Path, platform: str) -> Path:
     return output
 
 
+@unittest.skipUnless(HOST_TRIPLE, "packaging e2e tests require macOS or Windows")
 class PackagingEndToEndTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -449,6 +450,8 @@ class PackagingEndToEndTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("changed without a version bump", result.stderr)
 
+
+class ReleaseWorkflowTests(unittest.TestCase):
     def test_workflow_has_no_application_release_dependency(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
         for forbidden in [
