@@ -22,7 +22,7 @@ def load_release(repository: str, tag: str, draft: bool, run=subprocess.run) -> 
             "--repo",
             repository,
             "--json",
-            "tagName,isDraft,assets",
+            "databaseId,tagName,isDraft",
         ],
         check=True,
         capture_output=True,
@@ -34,6 +34,23 @@ def load_release(repository: str, tag: str, draft: bool, run=subprocess.run) -> 
     if release.get("isDraft") is not draft:
         kind = "draft" if draft else "published"
         raise ValueError(f"release {tag} is not a {kind} release")
+    release_id = release.get("databaseId")
+    if not isinstance(release_id, int):
+        raise ValueError(f"release {tag} has no database ID")
+    release["assets"] = json.loads(
+        run(
+            [
+                "gh",
+                "api",
+                f"repos/{repository}/releases/{release_id}",
+                "--jq",
+                ".assets",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
     return release
 
 

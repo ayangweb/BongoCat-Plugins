@@ -22,27 +22,30 @@ class FetchReleaseAssetsTests(unittest.TestCase):
 
                 def run(arguments, **kwargs):
                     calls.append(arguments)
-                    if arguments[:2] != ["gh", "release"]:
+                    if arguments[:2] == ["gh", "release"]:
                         return subprocess.CompletedProcess(
-                            arguments, 0, stdout=b"{}", stderr=b""
+                            arguments,
+                            0,
+                            stdout=json.dumps(
+                                {
+                                    "databaseId": 9,
+                                    "tagName": "v1.0.0",
+                                    "isDraft": draft,
+                                }
+                            ),
+                            stderr="",
+                        )
+                    if arguments[2].endswith("/releases/9"):
+                        return subprocess.CompletedProcess(
+                            arguments,
+                            0,
+                            stdout=json.dumps(
+                                [{"id": 7, "name": "plugins.json", "size": 2}]
+                            ),
+                            stderr="",
                         )
                     return subprocess.CompletedProcess(
-                        arguments,
-                        0,
-                        stdout=json.dumps(
-                            {
-                                "tagName": "v1.0.0",
-                                "isDraft": draft,
-                                "assets": [
-                                    {
-                                        "id": 7,
-                                        "name": "plugins.json",
-                                        "size": 2,
-                                    }
-                                ],
-                            }
-                        ),
-                        stderr="",
+                        arguments, 0, stdout=b"{}", stderr=b""
                     )
 
                 fetch_release_assets.fetch(
@@ -62,12 +65,22 @@ class FetchReleaseAssetsTests(unittest.TestCase):
                         "--repo",
                         "owner/repository",
                         "--json",
-                        "tagName,isDraft,assets",
+                        "databaseId,tagName,isDraft",
                     ],
                 )
                 self.assertEqual(
-                    calls[1][:4],
-                    ["gh", "api", f"repos/owner/repository/releases/assets/7", "--header"],
+                    calls[1],
+                    [
+                        "gh",
+                        "api",
+                        "repos/owner/repository/releases/9",
+                        "--jq",
+                        ".assets",
+                    ],
+                )
+                self.assertEqual(
+                    calls[2][:4],
+                    ["gh", "api", "repos/owner/repository/releases/assets/7", "--header"],
                 )
 
     def test_release_state_is_downloaded_with_selected_assets(self):
@@ -81,14 +94,23 @@ class FetchReleaseAssetsTests(unittest.TestCase):
                         0,
                         stdout=json.dumps(
                             {
+                                "databaseId": 9,
                                 "tagName": "v1.0.0",
                                 "isDraft": False,
-                                "assets": [
-                                    {"id": 1, "name": "plugins.json", "size": 2},
-                                    {"id": 2, "name": "release-state.json", "size": 2},
-                                    {"id": 3, "name": "unrelated.zip", "size": 2},
-                                ],
                             }
+                        ),
+                        stderr="",
+                    )
+                if arguments[2].endswith("/releases/9"):
+                    return subprocess.CompletedProcess(
+                        arguments,
+                        0,
+                        stdout=json.dumps(
+                            [
+                                {"id": 1, "name": "plugins.json", "size": 2},
+                                {"id": 2, "name": "release-state.json", "size": 2},
+                                {"id": 3, "name": "unrelated.zip", "size": 2},
+                            ]
                         ),
                         stderr="",
                     )
@@ -108,6 +130,8 @@ class FetchReleaseAssetsTests(unittest.TestCase):
 
     def test_wrong_release_kind_is_rejected(self):
         def run(arguments, **kwargs):
+            if arguments[:2] == ["gh", "api"]:
+                return subprocess.CompletedProcess(arguments, 0, stdout="[]", stderr="")
             return subprocess.CompletedProcess(
                 arguments,
                 0,
