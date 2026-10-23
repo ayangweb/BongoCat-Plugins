@@ -24,11 +24,28 @@ class ReleaseNotesTests(unittest.TestCase):
             },
         )
 
-    def test_render_is_plugin_only_and_deterministic(self):
+    def test_render_uses_changelog_entries_english_then_chinese(self):
         rendered = notes.render(ROOT, "v1.0.0")
-        self.assertIn("BongoCat Plugins v1.0.0", rendered)
-        self.assertIn("com.bongocat.key-sounds", rendered)
+        self.assertTrue(rendered.startswith("## Changelog\n\n### Input Source\n"))
+        self.assertIn(
+            "#### ✨ Features\n\n"
+            "- Added the Input Source plugin, showing the current input source in real time.",
+            rendered,
+        )
+        self.assertIn("\n\n---\n\n## 更新日志\n\n### 输入法状态\n", rendered)
+        self.assertIn(
+            "#### ✨ 新功能\n\n"
+            "- 新增输入法状态插件，实时显示当前使用的输入法。",
+            rendered,
+        )
+        self.assertNotIn("Published independently", rendered)
+        self.assertNotIn("`com.bongocat.input-source`", rendered)
         self.assertNotIn("latest.json", rendered)
+        self.assertEqual(rendered, notes.render(ROOT, "v1.0.0"))
+
+    def test_missing_release_version_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "no release notes for 9.9.9"):
+            notes.render(ROOT, "v9.9.9")
 
     def test_changelogs_live_at_the_repository_root(self):
         self.assertTrue((ROOT / "CHANGELOG.md").is_file())

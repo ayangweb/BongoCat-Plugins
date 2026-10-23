@@ -15,8 +15,7 @@ VERSION = re.compile(
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-START = "<!-- BONGOCAT_PLUGIN_RELEASE_NOTES:START -->"
-END = "<!-- BONGOCAT_PLUGIN_RELEASE_NOTES:END -->"
+LANGUAGE_SEPARATOR = "---"
 
 
 def fail(path: Path, message: str) -> ValueError:
@@ -55,7 +54,7 @@ def plugins(root: Path) -> dict[str, dict[str, str]]:
     return result
 
 
-def parse(path: Path) -> dict[str, dict[str, int]]:
+def parse(path: Path) -> dict[str, dict[str, object]]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
@@ -63,10 +62,12 @@ def parse(path: Path) -> dict[str, dict[str, int]]:
     if not lines or not lines[0].startswith("# "):
         raise fail(path, "changelog must start with a title")
     current = None
-    versions: dict[str, dict[str, int]] = {}
+    versions: dict[str, dict[str, object]] = {}
     section = None
     for number, line in enumerate(lines[1:], 2):
         if not line.strip():
+            if current is not None:
+                versions[current]["lines"].append(line)
             continue
         if line.startswith("## "):
             heading = line[3:].strip()
@@ -75,25 +76,40 @@ def parse(path: Path) -> dict[str, dict[str, int]]:
                 raise fail(path, f"line {number}: invalid version heading {heading!r}")
             if version in versions:
                 raise fail(path, f"duplicate changelog version {version}")
+            if version != "Unreleased" and not DATE.fullmatch(heading.split(" - ", 1)[-1]):
+                raise fail(path, f"line {number}: version heading needs a YYYY-MM-DD date")
             current = version
             section = None
-            versions[current] = {}
+            versions[current] = {"lines": [], "plugins": {}}
         elif line.startswith("### "):
             if current is None:
                 raise fail(path, f"line {number}: plugin heading outside a version")
             section = line[4:].strip()
-            if not section or section in versions[current]:
+            plugin_entries = versions[current]["plugins"]
+            if not section or section in plugin_entries:
                 raise fail(path, f"line {number}: duplicate or empty plugin heading")
-            versions[current][section] = 0
+            plugin_entries[section] = {"categories": [], "changes": 0}
+            versions[current]["lines"].append(line)
         elif line.startswith("#### "):
             if section is None:
                 raise fail(path, f"line {number}: change category outside a plugin")
+            category = line[5:].strip()
+            if not category:
+                raise fail(path, f"line {number}: empty change category")
+            versions[current]["plugins"][section]["categories"].append(category)
+            versions[current]["lines"].append(line)
         elif line.startswith("- "):
             if section is None:
                 raise fail(path, f"line {number}: change outside a plugin")
-            versions[current][section] += 1
+            versions[current]["plugins"][section]["changes"] += 1
+            versions[current]["lines"].append(line)
         else:
             raise fail(path, f"line {number}: unsupported changelog syntax")
+    for version, data in versions.items():
+        data["text"] = "\n".join(data.pop("lines")).strip()
+        for name, plugin in data["plugins"].items():
+            if not plugin["categories"] or plugin["changes"] == 0:
+                raise fail(path, f"{version} has no change entry for {name}")
     return versions
 
 
@@ -110,23 +126,19 @@ def validate(root: Path) -> dict[str, dict[str, str]]:
     changed = set()
     for version in english:
         try:
-            english_ids = {
-                english_names.get(name, name): count
-                for name, count in english[version].items()
-            }
-            chinese_ids = {
-                chinese_names.get(name, name): count
-                for name, count in chinese[version].items()
-            }
+            english_order = [
+                english_names.get(name, name) for name in english[version]["plugins"]
+            ]
+            chinese_order = [
+                chinese_names.get(name, name) for name in chinese[version]["plugins"]
+            ]
         except (KeyError, TypeError, AttributeError) as error:
             raise fail(root, f"invalid plugin heading in {version}") from error
-        if english_ids.keys() != chinese_ids.keys():
+        if english_order != chinese_order:
             raise fail(root, f"bilingual plugins differ in {version}")
-        if any(plugin_id not in names for plugin_id in english_ids):
+        if any(plugin_id not in names for plugin_id in english_order):
             raise fail(root, f"unknown plugin heading in {version}")
-        if any(count == 0 for count in english_ids.values()):
-            raise fail(root, f"{version} has a plugin entry without a change")
-        changed.update(english_ids)
+        changed.update(english_order)
     for plugin_id, data in names.items():
         if plugin_id not in changed:
             raise fail(
@@ -137,21 +149,19 @@ def validate(root: Path) -> dict[str, dict[str, str]]:
 
 
 def render(root: Path, tag: str) -> str:
-    names = validate(root)
+    validate(root)
     version = tag[1:] if tag.startswith("v") else tag
     if not VERSION.fullmatch(version):
         raise ValueError(f"invalid release tag {tag!r}")
-    lines = [
-        START,
-        f"# BongoCat Plugins {tag}",
-        "",
-        "Published independently from the BongoCat application.",
-        "",
-    ]
-    for plugin_id in sorted(names):
-        lines.append(f"- **{names[plugin_id]['en']}** (`{plugin_id}`) {names[plugin_id]['version']}")
-    lines.extend(["", END, ""])
-    return "\n".join(lines)
+    english = parse(root / "CHANGELOG.md")
+    chinese = parse(root / "CHANGELOG.zh-CN.md")
+    if version not in english or version not in chinese:
+        raise fail(root, f"changelogs have no release notes for {version}")
+    return (
+        f"## Changelog\n\n{english[version]['text']}\n\n"
+        f"{LANGUAGE_SEPARATOR}\n\n"
+        f"## 更新日志\n\n{chinese[version]['text']}\n"
+    )
 
 
 def main() -> int:
