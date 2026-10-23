@@ -1,5 +1,21 @@
-# Changelog
+# Plugin Changelog
 
 ## Unreleased
 
-- Split the plugin SDK, plugins, plugin packaging, signing, and release workflow into this independent repository.
+### Input Source
+
+#### ✨ Features
+
+- Added the Input Source plugin, showing the current input source in real time.
+
+### Key Sounds
+
+#### ✨ Features
+
+- Added the Key Sounds plugin with lively sound feedback for keyboard and mouse actions.
+
+### Pomodoro
+
+#### ✨ Features
+
+- Added the Pomodoro plugin to help you stay focused and plan your time.

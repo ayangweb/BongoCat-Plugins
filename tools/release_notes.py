@@ -55,7 +55,7 @@ def plugins(root: Path) -> dict[str, dict[str, str]]:
     return result
 
 
-def parse(path: Path) -> dict[str, set[str]]:
+def parse(path: Path) -> dict[str, dict[str, int]]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
@@ -63,31 +63,35 @@ def parse(path: Path) -> dict[str, set[str]]:
     if not lines or not lines[0].startswith("# "):
         raise fail(path, "changelog must start with a title")
     current = None
-    versions: dict[str, set[str]] = {}
-    seen_ids = set()
+    versions: dict[str, dict[str, int]] = {}
+    section = None
     for number, line in enumerate(lines[1:], 2):
         if not line.strip():
             continue
         if line.startswith("## "):
             heading = line[3:].strip()
-            version = heading.split(" - ", 1)[0]
-            if not VERSION.fullmatch(version):
+            version = "Unreleased" if heading == "Unreleased" else heading.split(" - ", 1)[0]
+            if version != "Unreleased" and not VERSION.fullmatch(version):
                 raise fail(path, f"line {number}: invalid version heading {heading!r}")
             if version in versions:
                 raise fail(path, f"duplicate changelog version {version}")
             current = version
-            versions[current] = set()
+            section = None
+            versions[current] = {}
         elif line.startswith("### "):
             if current is None:
                 raise fail(path, f"line {number}: plugin heading outside a version")
-            plugin_id = line[4:].strip()
-            if not plugin_id or plugin_id in seen_ids:
-                raise fail(path, f"line {number}: duplicate or empty plugin id")
-            seen_ids.add(plugin_id)
-            versions[current].add(plugin_id)
-        elif line.startswith(("#### ", "- ")):
-            if current is None or not versions[current]:
+            section = line[4:].strip()
+            if not section or section in versions[current]:
+                raise fail(path, f"line {number}: duplicate or empty plugin heading")
+            versions[current][section] = 0
+        elif line.startswith("#### "):
+            if section is None:
+                raise fail(path, f"line {number}: change category outside a plugin")
+        elif line.startswith("- "):
+            if section is None:
                 raise fail(path, f"line {number}: change outside a plugin")
+            versions[current][section] += 1
         else:
             raise fail(path, f"line {number}: unsupported changelog syntax")
     return versions
@@ -95,20 +99,38 @@ def parse(path: Path) -> dict[str, set[str]]:
 
 def validate(root: Path) -> dict[str, dict[str, str]]:
     names = plugins(root)
-    english = parse(root / "plugins/CHANGELOG.md")
-    chinese = parse(root / "plugins/CHANGELOG.zh-CN.md")
+    english = parse(root / "CHANGELOG.md")
+    chinese = parse(root / "CHANGELOG.zh-CN.md")
     if english.keys() != chinese.keys():
-        raise fail(root / "plugins", "bilingual changelog versions differ")
+        raise fail(root, "bilingual changelog versions differ")
+    english_names = {data["en"]: plugin_id for plugin_id, data in names.items()}
+    chinese_names = {data["zh-CN"]: plugin_id for plugin_id, data in names.items()}
+    if len(english_names) != len(names) or len(chinese_names) != len(names):
+        raise fail(root / "plugins", "plugin display names must be unique")
+    changed = set()
     for version in english:
-        if english[version] != chinese[version]:
-            raise fail(root / "plugins", f"bilingual plugins differ in {version}")
-        for plugin_id in english[version]:
-            if plugin_id not in names:
-                raise fail(root / "plugins", f"unknown plugin id {plugin_id!r}")
+        try:
+            english_ids = {
+                english_names.get(name, name): count
+                for name, count in english[version].items()
+            }
+            chinese_ids = {
+                chinese_names.get(name, name): count
+                for name, count in chinese[version].items()
+            }
+        except (KeyError, TypeError, AttributeError) as error:
+            raise fail(root, f"invalid plugin heading in {version}") from error
+        if english_ids.keys() != chinese_ids.keys():
+            raise fail(root, f"bilingual plugins differ in {version}")
+        if any(plugin_id not in names for plugin_id in english_ids):
+            raise fail(root, f"unknown plugin heading in {version}")
+        if any(count == 0 for count in english_ids.values()):
+            raise fail(root, f"{version} has a plugin entry without a change")
+        changed.update(english_ids)
     for plugin_id, data in names.items():
-        if data["version"] not in english or plugin_id not in english[data["version"]]:
+        if plugin_id not in changed:
             raise fail(
-                root / "plugins",
+                root,
                 f"{plugin_id} {data['version']} has no changelog entry",
             )
     return names

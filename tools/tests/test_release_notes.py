@@ -30,6 +30,12 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertIn("com.bongocat.key-sounds", rendered)
         self.assertNotIn("latest.json", rendered)
 
+    def test_changelogs_live_at_the_repository_root(self):
+        self.assertTrue((ROOT / "CHANGELOG.md").is_file())
+        self.assertTrue((ROOT / "CHANGELOG.zh-CN.md").is_file())
+        self.assertFalse((ROOT / "plugins" / "CHANGELOG.md").exists())
+        self.assertFalse((ROOT / "plugins" / "CHANGELOG.zh-CN.md").exists())
+
     def test_unknown_plugin_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
