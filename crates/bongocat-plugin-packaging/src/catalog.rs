@@ -112,7 +112,7 @@ fn dev_command(args: &[String]) -> Result<()> {
         let PluginIcon::LocalImage(relative) = &source.manifest.icon else {
             return Err(Error::Invalid("plugin must use a local icon".into()));
         };
-        let icon_name = format!("{}-{}.png", source.manifest.id, source.manifest.version);
+        let icon_name = archive::icon_name(&source.manifest);
         let icon_path = output.join(&icon_name);
         crate::output::replace(&icon_path, &fs::read(source.directory.join(relative))?)?;
         rows.push(CatalogEntry {
@@ -354,14 +354,14 @@ fn assemble_command(args: &[String]) -> Result<()> {
                 app_versions: source.manifest.app_versions.clone(),
                 protocol_version: source.manifest.protocol_version,
                 icon: source.manifest.icon.clone(),
-                icon_url: format!("{}-{}.png", source.manifest.id, source.manifest.version),
+                icon_url: archive::icon_name(&source.manifest),
                 downloads: [(platform.key().to_owned(), asset_name)].into(),
                 sha256: Some(digest),
                 homepage: None,
             });
         }
         if let PluginIcon::LocalImage(relative) = &source.manifest.icon {
-            let icon_name = format!("{}-{}.png", source.manifest.id, source.manifest.version);
+            let icon_name = archive::icon_name(&source.manifest);
             let bytes = fs::read(source.directory.join(relative))?;
             if let Some(existing) = assets.insert(icon_name, bytes.clone())
                 && existing != bytes

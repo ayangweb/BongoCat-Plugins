@@ -78,26 +78,25 @@ class PackagingEndToEndTests(unittest.TestCase):
             cwd=ROOT,
             check=True,
         )
-        if not (ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}").is_dir():
-            subprocess.run(
-                [
-                    "cargo",
-                    "run",
-                    "--locked",
-                    "-p",
-                    "bongocat-plugin-packaging",
-                    "--",
-                    "build",
-                    "--root",
-                    str(ROOT),
-                    "--target",
-                    HOST_TRIPLE,
-                    "--output",
-                    str(ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}"),
-                ],
-                cwd=ROOT,
-                check=True,
-            )
+        subprocess.run(
+            [
+                "cargo",
+                "run",
+                "--locked",
+                "-p",
+                "bongocat-plugin-packaging",
+                "--",
+                "build",
+                "--root",
+                str(ROOT),
+                "--target",
+                HOST_TRIPLE,
+                "--output",
+                str(ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}"),
+            ],
+            cwd=ROOT,
+            check=True,
+        )
 
     def test_catalog_sign_verify_and_immutability(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -145,7 +144,7 @@ class PackagingEndToEndTests(unittest.TestCase):
                 ],
                 check=True,
             )
-            catalog = output / "plugins.json"
+            catalog = output / "latest.json"
             environment = {
                 **dict(__import__("os").environ),
                 "PLUGIN_SIGNING_PRIVATE_KEY": private_key.read_text().strip(),
@@ -184,6 +183,15 @@ class PackagingEndToEndTests(unittest.TestCase):
             self.assertEqual(len(state["plugins"][0]["packages"]), 3)
             catalog = json.loads(catalog.read_text())["catalog"]
             self.assertEqual(len(catalog["plugins"]), 9)
+            assets = {
+                value
+                for entry in catalog["plugins"]
+                for value in [*entry["downloads"].values(), entry["icon_url"]]
+            }
+            self.assertIn("input-source-1.0.0-windows-x86_64.zip", assets)
+            self.assertIn("key-sounds-1.0.0-macos-aarch64.zip", assets)
+            self.assertIn("pomodoro-1.0.0.png", assets)
+            self.assertFalse(any(value.startswith("com.bongocat.") for value in assets))
 
             # Same source and version must reuse the exact historical package
             # bytes even when a runner produces different ZIP metadata.
@@ -341,7 +349,7 @@ class PackagingEndToEndTests(unittest.TestCase):
                 manifest.write_text(json.dumps(data))
                 for platform in ["macos-aarch64", "macos-x86_64"]:
                     source = inputs / platform
-                    for package in source.glob("com.bongocat.pomodoro-*.zip"):
+                    for package in source.glob("pomodoro-*.zip"):
                         import zipfile
 
                         with zipfile.ZipFile(package) as archive:
@@ -456,7 +464,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
         for forbidden in [
             "BongoCat/releases",
-            "latest.json",
             "secrets.SIGNING_PRIVATE_KEY",
             "secrets.RELEASE_SIGNING_KEY",
             "workflow_run",
@@ -467,6 +474,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
             'git merge-base --is-ancestor "$tag" refs/remotes/origin/master', workflow
         )
         self.assertIn("PLUGIN_SIGNING_PRIVATE_KEY", workflow)
+        self.assertIn("plugin-assets/latest.json", workflow)
         self.assertIn("release-state.json", workflow)
 
 

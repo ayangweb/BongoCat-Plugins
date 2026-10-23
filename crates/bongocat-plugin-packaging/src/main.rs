@@ -124,7 +124,7 @@ fn usage() -> String {
   bongocat-plugin-packaging build --root <workspace> --target <triple|platform> --output <dir>
   bongocat-plugin-packaging catalog <assemble|dev|sign|verify> ...
   bongocat-plugin-packaging keygen --private <file> --public <file>
-  bongocat-plugin-packaging verify --catalog <plugins.json> --state <state-dir> --public-key <file>"
+  bongocat-plugin-packaging verify --catalog <latest.json> --state <state-dir> --public-key <file>"
         .into()
 }
 

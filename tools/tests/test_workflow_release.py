@@ -36,7 +36,7 @@ class WorkflowReleaseTests(unittest.TestCase):
             "windows-x86_64",
         ]:
             self.assertGreaterEqual(WORKFLOW.count(platform), 3)
-        self.assertIn("for required in plugins.json release-state.json", WORKFLOW)
+        self.assertIn("for required in latest.json release-state.json", WORKFLOW)
         self.assertIn("for asset in plugin-assets/*.zip", WORKFLOW)
         self.assertGreaterEqual(WORKFLOW.count("cargo run --locked -p bongocat-plugin-packaging -- verify"), 2)
 
@@ -50,11 +50,11 @@ class WorkflowReleaseTests(unittest.TestCase):
     def test_workflow_does_not_reference_the_application_release(self):
         for forbidden in [
             "BongoCat/releases",
-            "latest.json",
             "secrets.SIGNING_PRIVATE_KEY",
             "secrets.RELEASE_SIGNING_KEY",
         ]:
             self.assertNotIn(forbidden, WORKFLOW)
+        self.assertIn("plugin-assets/latest.json", WORKFLOW)
 
     def test_validation_installs_every_tool_it_invokes(self):
         self.assertIn("components: clippy,rustfmt", WORKFLOW)

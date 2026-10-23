@@ -12,8 +12,25 @@ use std::{
 };
 use zip::{CompressionMethod, System, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
+pub fn asset_stem(manifest: &Manifest) -> &str {
+    manifest
+        .id
+        .rsplit('.')
+        .find(|component| !component.is_empty())
+        .unwrap_or(&manifest.id)
+}
+
 pub fn package_name(manifest: &Manifest, target: Platform) -> String {
-    format!("{}-{}-{}.zip", manifest.id, manifest.version, target.key())
+    format!(
+        "{}-{}-{}.zip",
+        asset_stem(manifest),
+        manifest.version,
+        target.key()
+    )
+}
+
+pub fn icon_name(manifest: &Manifest) -> String {
+    format!("{}-{}.png", asset_stem(manifest), manifest.version)
 }
 
 pub fn write_package(

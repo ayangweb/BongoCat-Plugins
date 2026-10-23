@@ -40,7 +40,7 @@ class FetchReleaseAssetsTests(unittest.TestCase):
                             arguments,
                             0,
                             stdout=json.dumps(
-                                [{"id": 7, "name": "plugins.json", "size": 2}]
+                                [{"id": 7, "name": "latest.json", "size": 2}]
                             ),
                             stderr="",
                         )
@@ -107,7 +107,7 @@ class FetchReleaseAssetsTests(unittest.TestCase):
                         0,
                         stdout=json.dumps(
                             [
-                                {"id": 1, "name": "plugins.json", "size": 2},
+                                {"id": 1, "name": "latest.json", "size": 2},
                                 {"id": 2, "name": "release-state.json", "size": 2},
                                 {"id": 3, "name": "unrelated.zip", "size": 2},
                             ]
@@ -120,12 +120,12 @@ class FetchReleaseAssetsTests(unittest.TestCase):
                 "owner/repository",
                 "v1.0.0",
                 output,
-                names={"plugins.json"},
+                names={"latest.json"},
                 run=run,
             )
             self.assertEqual(
                 {path.name for path in output.iterdir()},
-                {"plugins.json", "release-state.json"},
+                {"latest.json", "release-state.json"},
             )
 
     def test_wrong_release_kind_is_rejected(self):
