@@ -1,7 +1,9 @@
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,10 +11,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BIN = ROOT / "target" / "debug" / "bongocat-plugin-packaging"
+HOST_TRIPLES = {
+    ("darwin", "arm64"): "aarch64-apple-darwin",
+    ("darwin", "x86_64"): "x86_64-apple-darwin",
+    ("win32", "amd64"): "x86_64-pc-windows-msvc",
+    ("win32", "x86_64"): "x86_64-pc-windows-msvc",
+}
+PLATFORM_KEYS = {
+    "aarch64-apple-darwin": "macos-aarch64",
+    "x86_64-apple-darwin": "macos-x86_64",
+    "x86_64-pc-windows-msvc": "windows-x86_64",
+}
+
+
+def host_triple():
+    machine = os.uname().machine if hasattr(os, "uname") else os.environ.get("PROCESSOR_ARCHITECTURE")
+    machine = (machine or "").lower()
+    if machine == "amd64":
+        machine = "x86_64"
+    return HOST_TRIPLES[(sys.platform, machine)]
+
+
+HOST_TRIPLE = host_triple()
+HOST_PLATFORM = PLATFORM_KEYS[HOST_TRIPLE]
 
 
 def stage_packages(root: Path, platform: str) -> Path:
-    source = ROOT / "target" / "plugins" / "test-aarch64"
+    source = ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}"
     output = root / platform
     output.mkdir(parents=True)
     for package in source.glob("*.zip"):
@@ -52,7 +77,7 @@ class PackagingEndToEndTests(unittest.TestCase):
             cwd=ROOT,
             check=True,
         )
-        if not (ROOT / "target/plugins/test-aarch64").is_dir():
+        if not (ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}").is_dir():
             subprocess.run(
                 [
                     "cargo",
@@ -65,9 +90,9 @@ class PackagingEndToEndTests(unittest.TestCase):
                     "--root",
                     str(ROOT),
                     "--target",
-                    "aarch64-apple-darwin",
+                    HOST_TRIPLE,
                     "--output",
-                    str(ROOT / "target/plugins/test-aarch64"),
+                    str(ROOT / "target" / "plugins" / f"test-{HOST_PLATFORM}"),
                 ],
                 cwd=ROOT,
                 check=True,
@@ -78,6 +103,19 @@ class PackagingEndToEndTests(unittest.TestCase):
             root = Path(directory)
             inputs = root / "inputs"
             inputs.mkdir()
+            private_key = root / "plugin-release.key"
+            public_key = root / "plugin-release.pub"
+            subprocess.run(
+                [
+                    str(BIN),
+                    "keygen",
+                    "--private",
+                    str(private_key),
+                    "--public",
+                    str(public_key),
+                ],
+                check=True,
+            )
             for platform in ["macos-aarch64", "macos-x86_64", "windows-x86_64"]:
                 stage_packages(inputs, platform)
             output = root / "output"
@@ -109,9 +147,7 @@ class PackagingEndToEndTests(unittest.TestCase):
             catalog = output / "plugins.json"
             environment = {
                 **dict(__import__("os").environ),
-                "PLUGIN_SIGNING_PRIVATE_KEY": (ROOT / ".secrets/plugin-release.key")
-                .read_text()
-                .strip(),
+                "PLUGIN_SIGNING_PRIVATE_KEY": private_key.read_text().strip(),
             }
             subprocess.run(
                 [
@@ -123,7 +159,7 @@ class PackagingEndToEndTests(unittest.TestCase):
                     "--output",
                     str(catalog),
                     "--public-key",
-                    str(ROOT / "config/plugin-release.pub"),
+                    str(public_key),
                 ],
                 check=True,
                 env=environment,
@@ -137,7 +173,7 @@ class PackagingEndToEndTests(unittest.TestCase):
                     "--state",
                     str(output),
                     "--public-key",
-                    str(ROOT / "config/plugin-release.pub"),
+                    str(public_key),
                 ],
                 check=True,
             )

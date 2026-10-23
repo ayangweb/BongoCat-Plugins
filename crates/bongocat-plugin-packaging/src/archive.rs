@@ -51,10 +51,7 @@ pub fn write_package(
         ));
     }
     let path = output.join(package_name(&source.manifest, target));
-    let mut staged = tempfile::NamedTempFile::new_in(output)?;
-    staged.write_all(&bytes)?;
-    staged.as_file().sync_all()?;
-    staged.persist(&path)?;
+    crate::output::replace(&path, &bytes)?;
     Ok(path)
 }
 

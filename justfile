@@ -18,6 +18,9 @@ check: fmt
 build triple:
     cargo run --locked -p bongocat-plugin-packaging -- build --root . --target {{triple}} --output target/plugins
 
+dev-plugins triple:
+    cargo run --locked -p bongocat-plugin-packaging -- catalog dev --root . --target {{triple}} --output target/plugins
+
 keygen private public:
     cargo run --locked -p bongocat-plugin-packaging -- keygen --private {{private}} --public {{public}}
 

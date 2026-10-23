@@ -8,6 +8,7 @@
 mod archive;
 mod catalog;
 mod history;
+mod output;
 mod signing;
 mod workspace;
 
@@ -55,6 +56,20 @@ impl Platform {
             .into_iter()
             .find(|platform| platform.triple() == value || platform.key() == value)
             .ok_or_else(|| Error::Usage(format!("unsupported target {value}")))
+    }
+
+    pub fn host() -> Result<Self> {
+        let triple = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("macos", "aarch64") => Self::MacosAarch64,
+            ("macos", "x86_64") => Self::MacosX86_64,
+            ("windows", "x86_64") => Self::WindowsX86_64,
+            (os, arch) => {
+                return Err(Error::Usage(format!(
+                    "unsupported host {os}-{arch}; pass --target explicitly"
+                )));
+            }
+        };
+        Ok(triple)
     }
 }
 
@@ -107,7 +122,7 @@ fn run(args: Vec<String>) -> Result<()> {
 fn usage() -> String {
     "usage:
   bongocat-plugin-packaging build --root <workspace> --target <triple|platform> --output <dir>
-  bongocat-plugin-packaging catalog <assemble|sign|verify> ...
+  bongocat-plugin-packaging catalog <assemble|dev|sign|verify> ...
   bongocat-plugin-packaging keygen --private <file> --public <file>
   bongocat-plugin-packaging verify --catalog <plugins.json> --state <state-dir> --public-key <file>"
         .into()
