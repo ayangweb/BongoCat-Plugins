@@ -144,7 +144,7 @@ class PackagingEndToEndTests(unittest.TestCase):
                 ],
                 check=True,
             )
-            catalog = output / "latest.json"
+            catalog = output / "plugins.json"
             environment = {
                 **dict(__import__("os").environ),
                 "PLUGIN_SIGNING_PRIVATE_KEY": private_key.read_text().strip(),
@@ -474,7 +474,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
             'git merge-base --is-ancestor "$tag" refs/remotes/origin/master', workflow
         )
         self.assertIn("PLUGIN_SIGNING_PRIVATE_KEY", workflow)
-        self.assertIn("plugin-assets/latest.json", workflow)
+        self.assertIn("plugin-assets/plugins.json", workflow)
         self.assertIn("release-state.json", workflow)
 
 

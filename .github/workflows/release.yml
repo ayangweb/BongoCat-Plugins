@@ -179,7 +179,7 @@ jobs:
             --platform macos-aarch64 plugin-inputs/plugins-macos-aarch64 \
             --platform macos-x86_64 plugin-inputs/plugins-macos-x86_64 \
             --platform windows-x86_64 plugin-inputs/plugins-windows-x86_64
-      - name: Sign and verify latest.json with the plugin key
+      - name: Sign and verify plugins.json with the plugin key
         env:
           PLUGIN_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_SIGNING_PRIVATE_KEY }}
           PLUGIN_SIGNING_KEY_PASSWORD: ${{ secrets.PLUGIN_SIGNING_KEY_PASSWORD }}
@@ -187,10 +187,10 @@ jobs:
           set -euo pipefail
           cargo run --locked -p bongocat-plugin-packaging -- catalog sign \
             --catalog plugin-assets/catalog.json \
-            --output plugin-assets/latest.json \
+            --output plugin-assets/plugins.json \
             --public-key config/plugin-release.pub
           cargo run --locked -p bongocat-plugin-packaging -- verify \
-            --catalog plugin-assets/latest.json \
+            --catalog plugin-assets/plugins.json \
             --state plugin-assets \
             --public-key config/plugin-release.pub
           test -s plugin-assets/release-state.json
@@ -207,14 +207,14 @@ jobs:
             plugin-assets/*.zip \
             plugin-assets/*.png \
             plugin-assets/release-state.json \
-            plugin-assets/latest.json
+            plugin-assets/plugins.json
       - name: Verify the draft before exposing it
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           assets=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
-          for required in latest.json release-state.json; do
+          for required in plugins.json release-state.json; do
             grep -Fxq "$required" <<<"$assets"
           done
           for platform in macos-aarch64 macos-x86_64 windows-x86_64; do
@@ -227,7 +227,7 @@ jobs:
             --output published-verify \
             --draft
           cargo run --locked -p bongocat-plugin-packaging -- verify \
-            --catalog published-verify/latest.json \
+            --catalog published-verify/plugins.json \
             --state published-verify \
             --public-key config/plugin-release.pub
           for asset in plugin-assets/*.zip; do
@@ -258,7 +258,7 @@ jobs:
             --tag "$RELEASE_TAG" \
             --output downloads
           cargo run --locked -p bongocat-plugin-packaging -- verify \
-            --catalog downloads/latest.json \
+            --catalog downloads/plugins.json \
             --state downloads \
             --public-key config/plugin-release.pub
           for asset in plugin-assets/*.zip; do
