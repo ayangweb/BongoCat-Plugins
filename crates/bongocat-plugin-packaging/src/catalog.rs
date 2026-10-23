@@ -636,6 +636,7 @@ fn collect(root: &Path, directory: &Path, files: &mut Vec<PathBuf>) -> Result<()
 
 #[cfg(test)]
 mod development_tests {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     use super::*;
 
     #[test]
