@@ -1,109 +1,32 @@
 # BongoCat 插件
 
-这个仓库是 BongoCat 插件 SDK、官方插件、插件包和签名插件目录的独立来源。
+[English](README.md) | 简体中文
 
-## 仓库关系
+本仓库独立维护 BongoCat 插件 SDK、官方插件、打包与签名工具，以及签名插件目录。
+主应用通过固定的 Git commit 引入 SDK。
 
-主应用通过固定 Git revision 引入 SDK，不需要发布 crate，也不需要等待主应用发版：
+## 插件
 
-```toml
-[workspace.dependencies]
-bongocat-plugin-sdk = {
-    git = "https://github.com/ayangweb/BongoCat-Plugins",
-    rev = "<完整的 40 位 commit SHA>"
-}
-```
+|                                        图标                                         | 插件                               | 简介                                                   |
+| :---------------------------------------------------------------------------------: | ---------------------------------- | ------------------------------------------------------ |
+|    <img src="plugins/pomodoro/resources/icon.png" alt="番茄时钟图标" width="56">    | [番茄时钟](plugins/pomodoro)       | 通过专注计时帮助你保持专注、合理安排时间。             |
+|   <img src="plugins/key-sounds/resources/icon.png" alt="按键音效图标" width="56">   | [按键音效](plugins/key-sounds)     | 为键盘和鼠标操作添加生动的声音反馈，让每次交互更有趣。 |
+| <img src="plugins/input-source/resources/icon.png" alt="输入法状态图标" width="56"> | [输入法状态](plugins/input-source) | 实时显示当前使用的输入法，方便随时了解输入状态。       |
 
-必须固定完整 SHA。升级 `rev` 是主应用一次明确、可审查的变更，与插件 Release 相互独立。
+## 开发
 
-主应用只保留插件宿主、设置界面和运行时；SDK 以及 `pomodoro`、`key-sounds`、`input-source` 三个官方插件都由本仓库维护。
-
-## 发布模型
-
-推送一个 `v*` Tag 会发布一批插件。每个插件在 `plugins/<name>/plugin.json` 中维护自己的 SemVer，Tag 不必等于任何插件版本。
-
-工作流依次完成：
-
-1. 校验 Tag、源码、manifest、更新日志、Rust 测试和打包测试。
-2. 在 Windows x64、macOS arm64、macOS x64 上构建三个插件。
-3. 版本未变化时复用完全相同的 ZIP 字节。
-4. 源码发生变化但插件版本未提升时拒绝发布。
-5. 按 SemVer 拒绝版本回退；插件被移除后仍保留最后发布状态，阻止已退役版本被重新引入。
-6. 使用插件专用 Minisign 私钥签名规范化目录，并用仓库内公钥校验目录和全部插件包。
-7. 先把全部资产上传到草稿 Release，下载后逐项复核目录、状态、三平台矩阵和 ZIP 摘要，通过后再正式发布。
-
-公共插件目录地址与主应用独立：
-
-```text
-https://github.com/ayangweb/BongoCat-Plugins/releases/latest/download/plugins.json
-```
-
-目录、版本化 ZIP 和 PNG 均为不可变资产。发布流程不会移动 Tag，也不会覆盖已有 Release。
-
-## GitHub 配置
-
-在 `ayangweb/BongoCat-Plugins` 创建仓库并保护 `master`。只在该仓库配置两个 Actions Secret：
-
-- `PLUGIN_SIGNING_PRIVATE_KEY`：完整 Minisign 私钥 box；直接复制本地生成的 `.secrets/plugin-release.key` 全部内容。
-- `PLUGIN_SIGNING_KEY_PASSWORD`：该私钥的密码；无密码时设置为空值。
-
-仓库内公钥是 `config/plugin-release.pub`。不要把主应用的 `SIGNING_PRIVATE_KEY` 或 `RELEASE_SIGNING_KEY` 复制到本仓库。
-
-工作流使用仓库自动提供的 `GITHUB_TOKEN`，只有发布 Job 需要 `contents: write`。
-
-## 本地验证
+开发目标是 Windows x64，以及 Apple Silicon 或 Intel 的 macOS。构建必须在目标
+操作系统上运行。
 
 ```sh
 just check
-just build aarch64-apple-darwin
-just dev-plugins aarch64-apple-darwin
-just release-notes v1.0.0 target/release-notes.md
+cargo test --locked --workspace
+just build <host-triple>
+just dev-plugins <host-triple>
 ```
 
-`just build` 将单个平台的全部插件包写入 `target/plugins/`。`just dev-plugins`
-会构建相同平台的全部插件，并在同一目录额外生成本地开发使用的未签名
-`catalog.json` 与图标；请传入当前机器的 Rust host triple，构建必须在对应
-操作系统上运行。
+## 如何贡献
 
-目标构建必须在对应操作系统上运行，不能用 macOS 交叉编译推断 Windows 插件行为。
-
-若要在主应用仓库中直接使用本仓库开发插件，可以指定本仓库路径：
-
-```sh
-BONGOCAT_PLUGINS_ROOT=/path/to/BongoCat-Plugins just dev
-```
-
-不指定时，主应用的 `just dev` 会把本仓库克隆到主应用的
-`target/plugin-dev/BongoCat-Plugins`。两个开发命令都会调用本仓库的
-`catalog dev` 生成开发目录，再以它作为宿主的本地插件来源；不需要插件源码位于
-主应用仓库、发布 Tag、签名私钥或主应用 Release。
-
-本地还可以运行 `python3 -m unittest discover -s tools/tests -p 'test_*.py' -v`
-覆盖目录签名、三平台矩阵、版本回退、草稿资产查询和发布工作流约束。完整的
-GitHub Actions 发布仍需要真实仓库、三个 Runner 和签名 Secret。
-
-`catalog dev`、`catalog sign` 与插件包构建都可重复写入同一输出目录：内容相同时
-保持不动，开发目录变化时原子替换，因此重建失败不会要求先删除上一份可用目录。
-已发布的 Release 资产仍保持不可变，并按记录的摘要校验。
-
-## 发布与回滚
-
-1. 提升每个有变化插件的 manifest 与对应 Cargo 包版本。
-2. 在两份插件更新日志中为每个新版本各写一条记录。
-3. 运行 `just check`，并在受影响平台构建验证。
-4. 提交源码。
-5. 在该提交上创建并推送附注 `v*` Tag。
-
-发布失败时，旧的 GitHub `latest` Release 和 `plugins.json` 保持可用，草稿不会转为正式 Release。重试同一 Tag 前删除失败草稿，或使用新 Tag；永远不要移动或复用已发布的 Tag。已发布 Release 即使资产被人工删除也不会回退到旧版本；请修复并发布新 Tag。
-
-插件安装按 SemVer 选择版本。回滚错误插件时应发布一个更高版本恢复旧行为，而不是覆盖已有 ZIP、PNG、目录或 Release；工作流会拒绝这些改写。
-
-## 限制
-
-- 插件下载受宿主与发布端的大小限制约束。
-- 工作流下载单个 Release 资产的上限为 17 MiB。
-- 插件不提供 Windows Authenticode 签名，macOS 包也不做公证；信任来自目录 Minisign 签名和插件包 SHA-256 校验。
-- 首次发布要求仓库已经存在并配置好两个签名 Secret；工作流不能创建或配置 GitHub 仓库。
-- 工作流验证的是 GitHub Actions 执行链路；本地无法代替真实 Runner 完成 Windows、Intel macOS 和 Apple Silicon 三平台最终产物验证。
-- 本地开发构建会直接执行插件二进制，且没有公证、签名或独立用户隔离；开发插件应按受信任的本地代码处理。
-- 主应用切换 SDK 到本仓库的固定 `rev`、把插件目录地址和插件公钥改成本仓库地址，属于主应用的后续集成工作，不在本仓库的发布流程内。
+先 fork 本仓库，从 `upstream/master` 创建主题分支，完成并测试修改后提交 Pull
+Request。环境配置、插件规范、构建测试和主应用联调见
+[CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
