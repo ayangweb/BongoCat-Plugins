@@ -18,7 +18,7 @@ publish = false
 
 [workspace.dependencies]
 base64 = "=0.23.1"
-libc = "=0.2.190"
+libc = "=0.2.191"
 minisign = "=0.10.0"
 objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSImage", "NSImageRep", "NSGraphicsContext", "objc2-core-foundation", "objc2-core-graphics"] }
@@ -34,7 +34,7 @@ tempfile = "=3.27.0"
 thiserror = "=2.0.21"
 windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_System_Environment", "Win32_System_Registry", "Win32_UI_Input_Ime", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_TextServices", "Win32_UI_WindowsAndMessaging"] }
 flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
-zip = { version = "=9.0.2", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "=9.0.5", default-features = false, features = ["deflate-flate2"] }
 
 bongocat-plugin-sdk = { path = "crates/bongocat-plugin-sdk" }
 
