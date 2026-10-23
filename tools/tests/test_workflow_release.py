@@ -56,6 +56,14 @@ class WorkflowReleaseTests(unittest.TestCase):
         ]:
             self.assertNotIn(forbidden, WORKFLOW)
 
+    def test_validation_installs_every_tool_it_invokes(self):
+        self.assertIn("components: clippy,rustfmt", WORKFLOW)
+        self.assertIn("cargo install cargo-deny --version 0.20.2 --locked", WORKFLOW)
+        self.assertLess(
+            WORKFLOW.index("Install pinned cargo-deny"),
+            WORKFLOW.index("cargo deny --locked check licenses sources bans"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
