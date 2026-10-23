@@ -136,11 +136,11 @@ jobs:
           test -s config/plugin-release.pub
         env:
           PLUGIN_SIGNING_PRIVATE_KEY: ${{ secrets.PLUGIN_SIGNING_PRIVATE_KEY }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: plugins-*
           path: plugin-inputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-metadata
           path: metadata
