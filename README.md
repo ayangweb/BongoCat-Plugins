@@ -56,8 +56,8 @@ tag, and an existing release name is rejected instead of overwritten.
 Create the repository at `ayangweb/BongoCat-Plugins` and protect `master`.
 Configure these Actions secrets in that repository only:
 
-- `PLUGIN_SIGNING_PRIVATE_KEY`: base64 of the complete Minisign private-key
-  box. The generated local key is `.secrets/plugin-release.key`.
+- `PLUGIN_SIGNING_PRIVATE_KEY`: the complete Minisign private-key box, copied
+  verbatim from the generated local key at `.secrets/plugin-release.key`.
 - `PLUGIN_SIGNING_KEY_PASSWORD`: password for that key. Use an empty value if
   the key was generated without a password.
 
@@ -73,19 +73,43 @@ The workflow uses the repository's automatic `GITHUB_TOKEN` and needs
 ```sh
 just check
 just build aarch64-apple-darwin
+just dev-plugins aarch64-apple-darwin
 just release-notes v1.0.0 target/release-notes.md
 ```
 
 `just build` writes all packages for one platform to `target/plugins/`.
+`just dev-plugins` builds the same packages and adds the unsigned local
+`catalog.json` and icons that the application's Development Plugin Center reads.
+Use the Rust host triple for your machine; a build must run on the matching
+operating system.
 
 Run target builds on the matching operating system. In particular, do not
 infer Windows plugin behavior from a macOS cross-build.
+
+To develop against this checkout from the application repository, either let
+the application clone it under `target/plugin-dev/BongoCat-Plugins`, or point
+the application at this checkout before running its development command:
+
+```sh
+BONGOCAT_PLUGINS_ROOT=/path/to/BongoCat-Plugins just dev
+```
+
+The application's `just dev` and `just dev-smoke` invoke this repository's
+`catalog dev` command, then set the generated directory as the host's local
+plugin source. No plugin source, release tag, signing key, or application
+release is required for this path.
 
 The local suite also runs with
 `python3 -m unittest discover -s tools/tests -p 'test_*.py' -v`, covering catalog
 signing, the three-platform matrix, version regression, draft asset lookup, and
 workflow constraints. A full GitHub Actions release still requires the real
 repository, all three runners, and the signing secrets.
+
+`catalog dev`, `catalog sign`, and package builds are repeatable in the same
+output directory. Identical output is left in place and changed development
+catalogs are atomically replaced, so a failed rebuild does not require deleting
+the previous catalog. Published release assets remain immutable and are checked
+against their recorded digests.
 
 ## Publishing
 
@@ -119,5 +143,8 @@ those mutations.
 - Workflow verification covers the GitHub Actions execution path; local checks
   cannot replace final builds on the Windows, Intel macOS, and Apple Silicon
   runners.
+- Local development builds execute plugin binaries directly and are not
+  notarized, signed, or isolated from the host's user account. Treat plugins as
+  trusted local code during development.
 - Switching the application to this repository's SDK `rev`, plugin catalog URL,
   and plugin public key is separate application integration work.

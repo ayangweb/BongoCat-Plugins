@@ -44,7 +44,7 @@ https://github.com/ayangweb/BongoCat-Plugins/releases/latest/download/plugins.js
 
 在 `ayangweb/BongoCat-Plugins` 创建仓库并保护 `master`。只在该仓库配置两个 Actions Secret：
 
-- `PLUGIN_SIGNING_PRIVATE_KEY`：完整 Minisign 私钥 box 的 Base64；本地生成文件为 `.secrets/plugin-release.key`。
+- `PLUGIN_SIGNING_PRIVATE_KEY`：完整 Minisign 私钥 box；直接复制本地生成的 `.secrets/plugin-release.key` 全部内容。
 - `PLUGIN_SIGNING_KEY_PASSWORD`：该私钥的密码；无密码时设置为空值。
 
 仓库内公钥是 `config/plugin-release.pub`。不要把主应用的 `SIGNING_PRIVATE_KEY` 或 `RELEASE_SIGNING_KEY` 复制到本仓库。
@@ -56,16 +56,35 @@ https://github.com/ayangweb/BongoCat-Plugins/releases/latest/download/plugins.js
 ```sh
 just check
 just build aarch64-apple-darwin
+just dev-plugins aarch64-apple-darwin
 just release-notes v1.0.0 target/release-notes.md
 ```
 
-`just build` 将单个平台的全部插件包写入 `target/plugins/`。
+`just build` 将单个平台的全部插件包写入 `target/plugins/`。`just dev-plugins`
+会构建相同平台的全部插件，并在同一目录额外生成本地开发使用的未签名
+`catalog.json` 与图标；请传入当前机器的 Rust host triple，构建必须在对应
+操作系统上运行。
 
 目标构建必须在对应操作系统上运行，不能用 macOS 交叉编译推断 Windows 插件行为。
+
+若要在主应用仓库中直接使用本仓库开发插件，可以指定本仓库路径：
+
+```sh
+BONGOCAT_PLUGINS_ROOT=/path/to/BongoCat-Plugins just dev
+```
+
+不指定时，主应用的 `just dev` 会把本仓库克隆到主应用的
+`target/plugin-dev/BongoCat-Plugins`。两个开发命令都会调用本仓库的
+`catalog dev` 生成开发目录，再以它作为宿主的本地插件来源；不需要插件源码位于
+主应用仓库、发布 Tag、签名私钥或主应用 Release。
 
 本地还可以运行 `python3 -m unittest discover -s tools/tests -p 'test_*.py' -v`
 覆盖目录签名、三平台矩阵、版本回退、草稿资产查询和发布工作流约束。完整的
 GitHub Actions 发布仍需要真实仓库、三个 Runner 和签名 Secret。
+
+`catalog dev`、`catalog sign` 与插件包构建都可重复写入同一输出目录：内容相同时
+保持不动，开发目录变化时原子替换，因此重建失败不会要求先删除上一份可用目录。
+已发布的 Release 资产仍保持不可变，并按记录的摘要校验。
 
 ## 发布与回滚
 
@@ -86,4 +105,5 @@ GitHub Actions 发布仍需要真实仓库、三个 Runner 和签名 Secret。
 - 插件不提供 Windows Authenticode 签名，macOS 包也不做公证；信任来自目录 Minisign 签名和插件包 SHA-256 校验。
 - 首次发布要求仓库已经存在并配置好两个签名 Secret；工作流不能创建或配置 GitHub 仓库。
 - 工作流验证的是 GitHub Actions 执行链路；本地无法代替真实 Runner 完成 Windows、Intel macOS 和 Apple Silicon 三平台最终产物验证。
+- 本地开发构建会直接执行插件二进制，且没有公证、签名或独立用户隔离；开发插件应按受信任的本地代码处理。
 - 主应用切换 SDK 到本仓库的固定 `rev`、把插件目录地址和插件公钥改成本仓库地址，属于主应用的后续集成工作，不在本仓库的发布流程内。

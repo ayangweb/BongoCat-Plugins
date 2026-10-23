@@ -10,7 +10,6 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -74,15 +73,73 @@ pub fn sha256_of(bytes: &[u8]) -> String {
 pub fn command(args: &[String]) -> Result<()> {
     let Some(action) = args.first().map(String::as_str) else {
         return Err(Error::Usage(
-            "catalog requires assemble, sign, or verify".into(),
+            "catalog requires assemble, dev, sign, or verify".into(),
         ));
     };
     match action {
         "assemble" => assemble_command(&args[1..]),
+        "dev" => dev_command(&args[1..]),
         "sign" => sign_command(&args[1..]),
         "verify" => verify_command(&args[1..]),
         _ => Err(Error::Usage(format!("unknown catalog action {action}"))),
     }
+}
+
+/// Build one host platform and write the same catalog shape Development reads.
+///
+/// This intentionally does not consume release history, invent a release tag,
+/// or sign anything. It is a local inspection surface for the application's
+/// `just dev` path, not an alternate release pipeline.
+fn dev_command(args: &[String]) -> Result<()> {
+    crate::reject_unknown(args, &["--root", "--target", "--output"], &[])?;
+    let root = Path::new(arg(args, "--root")?.unwrap_or("."));
+    let target = match arg(args, "--target")? {
+        Some(target) => crate::Platform::parse(target)?,
+        None => crate::Platform::host()?,
+    };
+    let output = PathBuf::from(
+        arg(args, "--output")?
+            .ok_or_else(|| Error::Usage("catalog dev requires --output".into()))?,
+    );
+
+    workspace::build_target(root, target, &output)?;
+    let sources = workspace::plugins(root)?;
+    let mut rows = Vec::new();
+    for source in &sources {
+        let package_path = output.join(archive::package_name(&source.manifest, target));
+        let bytes = fs::read(&package_path)?;
+        archive::validate_package(&bytes, &source.manifest, target)?;
+        let PluginIcon::LocalImage(relative) = &source.manifest.icon else {
+            return Err(Error::Invalid("plugin must use a local icon".into()));
+        };
+        let icon_name = format!("{}-{}.png", source.manifest.id, source.manifest.version);
+        let icon_path = output.join(&icon_name);
+        crate::output::replace(&icon_path, &fs::read(source.directory.join(relative))?)?;
+        rows.push(CatalogEntry {
+            id: source.manifest.id.clone(),
+            name: source.manifest.name.clone(),
+            description: source.manifest.description.clone(),
+            localizations: source.manifest.localizations.clone(),
+            version: source.manifest.version.clone(),
+            app_versions: source.manifest.app_versions.clone(),
+            protocol_version: source.manifest.protocol_version,
+            icon: source.manifest.icon.clone(),
+            icon_url: icon_path.canonicalize()?.to_string_lossy().into_owned(),
+            downloads: [(
+                target.key().to_owned(),
+                archive::package_name(&source.manifest, target),
+            )]
+            .into(),
+            sha256: Some(sha256_of(&bytes)),
+            homepage: None,
+        });
+    }
+    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    crate::output::replace(
+        &output.join("catalog.json"),
+        &serde_json::to_vec(&Catalog { plugins: rows })?,
+    )?;
+    Ok(())
 }
 
 fn assemble_command(args: &[String]) -> Result<()> {
@@ -371,14 +428,14 @@ fn assemble_command(args: &[String]) -> Result<()> {
     };
     fs::create_dir_all(&output)?;
     for (name, bytes) in assets {
-        write_new_or_same(&output.join(name), &bytes)?;
+        crate::output::new_or_same(&output.join(name), &bytes)?;
     }
-    write_new_or_same(&output.join("catalog.json"), &serde_json::to_vec(&catalog)?)?;
-    write_new_or_same(
+    crate::output::new_or_same(&output.join("catalog.json"), &serde_json::to_vec(&catalog)?)?;
+    crate::output::new_or_same(
         &output.join(STATE_NAME),
         &serde_json::to_vec_pretty(&state)?,
     )?;
-    write_new_or_same(&output.join("RELEASE_TAG"), tag.as_bytes())?;
+    crate::output::new_or_same(&output.join("RELEASE_TAG"), tag.as_bytes())?;
     Ok(())
 }
 
@@ -408,7 +465,7 @@ fn sign_command(args: &[String]) -> Result<()> {
         let key = fs::read_to_string(public_path)?;
         verify_catalog(&bytes, &key)?;
     }
-    write_atomic(&output, &bytes)?;
+    crate::output::replace(&output, &bytes)?;
     Ok(())
 }
 
@@ -577,26 +634,42 @@ fn collect(root: &Path, directory: &Path, files: &mut Vec<PathBuf>) -> Result<()
     Ok(())
 }
 
-fn write_new_or_same(path: &Path, bytes: &[u8]) -> Result<()> {
-    if path.exists() {
-        if fs::read(path)? == bytes {
-            return Ok(());
-        }
-        return Err(Error::Invalid(format!(
-            "refusing to overwrite different bytes at {}",
-            path.display()
-        )));
-    }
-    write_atomic(path, bytes)
-}
+#[cfg(test)]
+mod development_tests {
+    use super::*;
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+    #[test]
+    fn development_catalog_names_local_packages_and_icons() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap();
+        let target = crate::Platform::host().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        let args = [
+            "--root".into(),
+            root.display().to_string(),
+            "--target".into(),
+            target.triple().into(),
+            "--output".into(),
+            output.path().display().to_string(),
+        ];
+        dev_command(&args).unwrap();
+        // Development builds are routinely repeated without cleaning target/.
+        dev_command(&args).unwrap();
+        let catalog: Catalog =
+            serde_json::from_slice(&fs::read(output.path().join("catalog.json")).unwrap()).unwrap();
+        assert_eq!(catalog.plugins.len(), 3);
+        for entry in catalog.plugins {
+            let package = output
+                .path()
+                .join(entry.downloads.get(target.key()).unwrap());
+            assert!(package.is_file(), "{}", package.display());
+            assert_eq!(
+                entry.sha256.as_deref(),
+                Some(sha256_of(&fs::read(package).unwrap()).as_str())
+            );
+            assert!(Path::new(&entry.icon_url).is_file());
+        }
     }
-    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
-    file.write_all(bytes)?;
-    file.as_file().sync_all()?;
-    file.persist(path)?;
-    Ok(())
 }
