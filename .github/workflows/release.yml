@@ -126,6 +126,8 @@ jobs:
       - windows-x64
       - macos
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
     permissions:
       contents: write
       actions: read

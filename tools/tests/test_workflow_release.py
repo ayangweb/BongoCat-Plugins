@@ -64,6 +64,10 @@ class WorkflowReleaseTests(unittest.TestCase):
             WORKFLOW.index("cargo deny --locked check licenses sources bans"),
         )
 
+    def test_publish_job_defines_the_release_tag_environment(self):
+        publish = WORKFLOW[WORKFLOW.index("  publish:") :]
+        self.assertIn("    env:\n      RELEASE_TAG: ${{ github.ref_name }}", publish)
+
 
 if __name__ == "__main__":
     unittest.main()
