@@ -34,6 +34,32 @@ unsafe extern "C-unwind" {
     static kTISNotifySelectedKeyboardInputSourceChanged: &'static CFString;
 }
 
+#[repr(C)]
+struct ProcessSerialNumber {
+    high: u32,
+    low: u32,
+}
+
+#[link(name = "ApplicationServices", kind = "framework")]
+unsafe extern "C-unwind" {
+    fn TransformProcessType(process: &ProcessSerialNumber, state: u32) -> i32;
+}
+
+fn become_agent() -> Result<(), InputSourceError> {
+    const CURRENT_PROCESS: u32 = 2;
+    const UI_ELEMENT_APPLICATION: u32 = 4;
+    let current_process = ProcessSerialNumber {
+        high: 0,
+        low: CURRENT_PROCESS,
+    };
+    // SAFETY: kCurrentProcess identifies this process; state 4 is Apple's
+    // kProcessTransformToUIElementApplication. Like Tao's Dock implementation,
+    // classify the process before TIS/AppKit can register it as a foreground app.
+    // The plugin has no windows or NSApplication event loop to finish launching.
+    let status = unsafe { TransformProcessType(&current_process, UI_ELEMENT_APPLICATION) };
+    (status == 0).then_some(()).ok_or(InputSourceError)
+}
+
 /// The input source the system's own icon manager takes. Its parameter is
 /// declared as `struct __TISInputSource *`, and a checked message send compares
 /// encodings, so that pointer shape is spelled out here.
@@ -65,6 +91,7 @@ pub(super) struct Monitor {
 impl Monitor {
     pub(super) fn new() -> Result<Self, InputSourceError> {
         let main = MainThreadMarker::new().ok_or(InputSourceError)?;
+        become_agent()?;
         let center = CFNotificationCenter::distributed_center().ok_or(InputSourceError)?;
         let dirty = Box::new(AtomicBool::new(true));
         // SAFETY: the stable Box address outlives the registration. The callback
