@@ -1,6 +1,21 @@
 //! A read-only input source indicator. Policy belongs here, not in the host.
 #![deny(unsafe_code)]
 
+#[cfg(target_os = "macos")]
+embed_plist::embed_info_plist_bytes!(
+    br#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.bongocat.input-source</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>
+"#
+);
+
 mod input_source;
 
 /// macOS publishes a change from its own notification loop; Windows has no

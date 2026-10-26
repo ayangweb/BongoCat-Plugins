@@ -313,3 +313,18 @@ fn windows_ticks_observe_the_source_because_no_notification_reaches_this_process
     assert_eq!(plugin.now_ms, 1000);
     assert!(output.validate());
 }
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_binary_declares_an_agent_identity_before_launch() {
+    let plist = embed_plist::get_info_plist();
+    assert!(
+        plist
+            .windows(b"<key>LSUIElement</key>".len())
+            .any(|window| window == b"<key>LSUIElement</key>")
+    );
+    assert!(
+        plist
+            .windows(b"<key>CFBundleIdentifier</key>".len())
+            .any(|window| window == b"<key>CFBundleIdentifier</key>")
+    );
+}

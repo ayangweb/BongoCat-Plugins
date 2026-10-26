@@ -11,6 +11,7 @@ bongocat-plugin-sdk.workspace = true
 thiserror.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
+embed_plist.workspace = true
 libc.workspace = true
 objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSImage", "NSImageRep", "NSGraphicsContext", "objc2-core-foundation", "objc2-core-graphics"] }

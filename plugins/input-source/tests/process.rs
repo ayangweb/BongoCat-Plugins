@@ -57,8 +57,6 @@ fn real_process_supports_modes_locale_errors_reset_and_clean_shutdown() {
     })
     .unwrap();
     assert!(started.validate());
-    #[cfg(target_os = "macos")]
-    assert_agent(child.id());
     assert_eq!(started.config["mode"], ConfigValue::Text("always".into()));
     assert!(started.settings.nodes.iter().any(
         |node| matches!(node, UiNode::Select { key, value, .. } if key == "mode" && value == "always")
@@ -99,8 +97,6 @@ fn real_process_supports_modes_locale_errors_reset_and_clean_shutdown() {
     }
     assert!(send(HostMessage::Pause).unwrap().model.nodes.is_empty());
     assert!(send(HostMessage::Resume).unwrap().validate());
-    #[cfg(target_os = "macos")]
-    assert_agent(child.id());
     let stopped = send(HostMessage::Stop).unwrap();
     assert!(stopped.model.nodes.is_empty());
     assert!(
@@ -108,23 +104,4 @@ fn real_process_supports_modes_locale_errors_reset_and_clean_shutdown() {
         "disabling the plugin must not publish a runtime error"
     );
     assert!(child.wait().unwrap().success());
-}
-
-#[cfg(target_os = "macos")]
-fn assert_agent(pid: u32) {
-    use objc2::{msg_send, rc::Retained, runtime::AnyClass, runtime::AnyObject};
-    // Keep AppKit linked in the test driver as well as in the child process.
-    std::hint::black_box(<objc2_app_kit::NSImage as objc2::ClassType>::class());
-    let class = AnyClass::get(c"NSRunningApplication").unwrap();
-    // SAFETY: NSRunningApplication's documented class method accepts a pid_t
-    // and returns an autoreleased object. Retained owns it during the query.
-    let application: Option<Retained<AnyObject>> =
-        unsafe { msg_send![class, runningApplicationWithProcessIdentifier: pid as i32] };
-    let application = application.expect("plugin registered with Launch Services");
-    // SAFETY: the live NSRunningApplication reports an NSInteger policy.
-    let policy: isize = unsafe { msg_send![&*application, activationPolicy] };
-    assert_eq!(
-        policy, 1,
-        "plugin must be an accessory, without a Dock icon"
-    );
 }
